@@ -1,7 +1,7 @@
 import argparse
 import time
-import client
-import json
+from client import RCClinet
+from posedef import NOD_MOTION
 
 # Commadline option
 parse = argparse.ArgumentParser()
@@ -17,29 +17,87 @@ SPEECH_PORT = args.speech_port
 POSE_PORT = args.pose_port
 READ_PORT = args.read_port
 
-# Speech command
-with open('sample.wav', 'rb') as f:
-    wav_data = f.read()
-    client.send(HOST, SPEECH_PORT, wav_data)
-time.sleep(3)
+c = RCClinet(HOST, SPEECH_PORT, POSE_PORT, READ_PORT)
+
+
+# Say command
+text = 'おはようございます。ぼくはソータです。どうぞよろしくお願いします。'
+t = c.say(text)
+print(text, 'time:', t)
+time.sleep(t + 3)
+
+# Play wav command
+text = 'サンプルのWavファイルを再生します。'
+t = c.say(text)
+print(text, 'time:', t)
+time.sleep(t + 1)
+t = c.play_wav('sample.wav')
+print('Sample.wav', 'time:', t)
+time.sleep(t + 3)
 
 # Pose command (Servo)
-pose_data = {'Msec': 2000, 'ServoMap': {'BODY_Y': -45, 'L_SHOU': 0}}
-client.send(HOST, POSE_PORT, json.dumps(pose_data).encode('utf-8'))
-time.sleep(3)
+text = '2秒間で、45度回転し、左手を90度あげます。'
+t = c.say(text)
+print(text, 'time:', t)
+pose = {'Msec': 2000, 'ServoMap': {'BODY_Y': -45, 'L_SHOU': 0}}
+c.play_pose(pose)
+time.sleep(t + 3)
 
 # Pose command (LED)
-pose_data = {'Msec': 100, 'LedMap': {'L_EYE_R': 0, 'L_EYE_G': 0, 'L_EYE_B': 255, 'R_EYE_R': 255, 'R_EYE_G': 0, 'R_EYE_B': 0}}
-client.send(HOST, POSE_PORT, json.dumps(pose_data).encode('utf-8'))
-time.sleep(3)
+text = '目の色も変えられます。'
+t = c.say(text)
+print(text, 'time:', t)
+pose = {'Msec': 500, 'LedMap': {'L_EYE_R': 0, 'L_EYE_G': 0, 'L_EYE_B': 255, 'R_EYE_R': 0, 'R_EYE_G': 0, 'R_EYE_B': 255}}
+c.play_pose(pose)
+time.sleep(t + 3)
 
 # Read command
-read_data = client.recv(HOST, READ_PORT)
-print('Robot Axes:', read_data)
-time.sleep(3)
+text = '今の関節角度をコンソールに表示しています。'
+t = c.say(text)
+print(text, 'time:', t)
+
+axes = c.read_axes()
+print('Robot Axes:', axes)
+time.sleep(t + 3)
 
 # Pose command
-pose_data = {'Msec': 1000, 'ServoMap': {'BODY_Y': 0, 'L_SHOU': -90}, 'LedMap': {'L_EYE_R': 255, 'L_EYE_G': 255, 'L_EYE_B': 255, 'R_EYE_R': 255, 'R_EYE_G': 255, 'R_EYE_B': 255}}
-client.send(HOST, POSE_PORT, json.dumps(pose_data).encode('utf-8'))
-time.sleep(3)
+text = '関節角度をリセットして、目の色も戻します。'
+t = c.say(text)
+print(text, 'time:', t)
+c.reset_pose()
+time.sleep(t + 3)
 
+# Motion command
+text = 'うなずきモーションを実行します。'
+t = c.say(text)
+print(text, 'time:', t)
+time.sleep(t + 1)
+t = c.play_motion(NOD_MOTION)
+print('Nod motion', 'time:', t)
+time.sleep(t + 3)
+
+
+# Idle motion
+text = 'アイドルモーションを実行します。10秒間様子を見てください。'
+t = c.say(text)
+print(text, 'time:', t)
+c.play_idle_motion()
+time.sleep(t + 10)
+
+# Say with motion
+text = '''\
+発話しながら、適当なモーションを自動でつけることもできます。\
+ちなみに、プレイスピーチモーションや、プレイモーションを実行すると、\
+アイドルモーションは停止します。\
+'''
+t = c.say(text)
+c.play_speech_motion(t)
+print(text, 'time:', t)
+time.sleep(t + 3)
+
+
+text = 'これで、機能の説明は終了です。ありがとうございました。'
+t = c.say(text)
+c.reset_pose()
+print(text, 'time:', t)
+time.sleep(t)

@@ -13,5 +13,5 @@ docker build -t robotcontroller_client .
 
 ```
 docker run -it --name robotcontroller_client --mount type=bind,source="$(pwd)"/src,target=/tmp --rm robotcontroller_client /bin/bash
-python sample.py --host 192.168.x.x 
+python3 sample.py --host 192.168.x.x 
 ```
