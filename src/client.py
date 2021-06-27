@@ -7,7 +7,7 @@ import threading
 from pydub import AudioSegment
 
 
-class RCClinet(object):
+class RCClient(object):
     """
     RobotControllerを操作するためのクラス
     """

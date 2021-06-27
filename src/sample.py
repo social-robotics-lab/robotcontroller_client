@@ -1,6 +1,6 @@
 import argparse
 import time
-from client import RCClinet
+from client import RCClient
 from posedef import NOD_MOTION
 
 # Commadline option
@@ -17,7 +17,7 @@ SPEECH_PORT = args.speech_port
 POSE_PORT = args.pose_port
 READ_PORT = args.read_port
 
-c = RCClinet(HOST, SPEECH_PORT, POSE_PORT, READ_PORT)
+c = RCClient(HOST, SPEECH_PORT, POSE_PORT, READ_PORT)
 
 
 # Say command
