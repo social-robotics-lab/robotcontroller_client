@@ -1,12 +1,10 @@
 import subprocess
 import os.path
 
-# Path to which OpenJTalk was installed
-OPENJTALK_BINPATH = '/usr/bin'
-OPENJTALK_DICPATH = '/var/lib/mecab/dic/open-jtalk/naist-jdic'
-OPENJTALK_VOICEPATH = '/usr/share/hts-voice/mei/mei_{emotion}.htsvoice'
-
-def make_wav(text, speed=1.0, emotion='normal', output_file='__temp.wav', output_dir=os.getcwd()):
+def make_wav(text, speed=1.0, emotion='normal', output_file='__temp.wav', output_dir=os.getcwd(), voice_name='mei',
+             openjtalk_binpath='/usr/bin',
+             openjtalk_dicpath='/var/lib/mecab/dic/open-jtalk/naist-jdic',
+             openjtalk_voicepath='/usr/share/hts-voice/{voice_name}/{voice_name}_{emotion}.htsvoice'):
     """
     Function to make a wav file using OpenJTalk.
     args:
@@ -15,9 +13,9 @@ def make_wav(text, speed=1.0, emotion='normal', output_file='__temp.wav', output
         output_file: The file name made by this function. (Default: '__temp.wav')
         output_dir: The directory of output_file. (Default: Current directory)
     """
-    open_jtalk = [OPENJTALK_BINPATH + '/open_jtalk']
-    mech = ['-x', OPENJTALK_DICPATH]
-    htsvoice = ['-m', OPENJTALK_VOICEPATH.format(emotion=emotion)]
+    open_jtalk = [openjtalk_binpath + '/open_jtalk']
+    mech = ['-x', openjtalk_dicpath]
+    htsvoice = ['-m', openjtalk_voicepath.format(voice_name=voice_name, emotion=emotion)]
     speed = ['-r', str(speed)]
     outwav = ['-ow', os.path.join(output_dir, output_file)]
     cmd = open_jtalk + mech + htsvoice + speed + outwav

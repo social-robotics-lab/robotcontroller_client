@@ -20,6 +20,6 @@ RUN wget --no-check-certificate http://sourceforge.net/projects/mmdagent/files/M
 
 RUN pip3 install pydub
 
-# RUN useradd -m -d /home/sota -s /bin/bash sota
-# USER sota
+RUN useradd -m -d /home/sota -s /bin/bash sota
+USER sota
 WORKDIR /tmp

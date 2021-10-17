@@ -1,210 +1,99 @@
 import json
 import jtalk
-import posedef
 import random
-import socket
-import threading
+import serverio as io
 from pydub import AudioSegment
+from typing import List
+
+HOME_ALL_SERVO_MAP = dict(HEAD_R=0, HEAD_P=-5, HEAD_Y=0, BODY_Y=0, L_SHOU=-90, L_ELBO=0, R_SHOU=90, R_ELBO=0)
+HOME_ARM_SERVO_MAP = dict(L_SHOU=-90, L_ELBO=0, R_SHOU=90, R_ELBO=0)
+HOME_LED_MAP = dict(L_EYE_R=255, L_EYE_G=255, L_EYE_B=255, R_EYE_R=255, R_EYE_G=255, R_EYE_B=255)
+SPEECH_SERVO_MAPS = [
+            dict(R_SHOU=59, R_ELBO=23, L_ELBO=-21, L_SHOU=-63),
+            dict(R_SHOU=32, R_ELBO=84, L_ELBO=-80, L_SHOU=-16),
+            dict(R_SHOU=15, R_ELBO=84, L_ELBO=-76, L_SHOU=-40),
+            dict(R_SHOU=57, R_ELBO=20, L_ELBO=-80, L_SHOU=-46),
+            dict(R_SHOU=29, R_ELBO=92, L_ELBO=-36, L_SHOU=-74),
+            dict(R_SHOU=75, R_ELBO=30, L_ELBO=-31, L_SHOU=-79)
+]
 
 
-class RCClient(object):
+def say_text(ip:str, port:int, text:str, speed=1.0, emotion='normal') -> int:
+    output_file = '{}.wav'.format(text[:10])
+    jtalk.make_wav(text, speed, emotion, output_file, output_dir='wav')
+    with open('wav/' + output_file, 'rb') as f:
+        data = f.read()
+        io.send(ip, port, 'play_wav', data)
+    sound = AudioSegment.from_file('wav/' + output_file, 'wav')
+    return int(sound.duration_seconds * 1000)
+
+def play_wav(ip:str, port:int, wav_file:str) -> int:
+    with open(wav_file, 'rb') as f:
+        data = f.read()
+        io.send(ip, port, 'play_wav', data)
+    sound = AudioSegment.from_file(wav_file, 'wav')
+    return int(sound.duration_seconds * 1000)
+
+def stop_wav(ip:str, port:int):
+    io.send(ip, port, 'stop_wav')
+
+def play_pose(ip:str, port:int, pose:dict) -> int:
+    data = json.dumps(pose).encode('utf-8')
+    io.send(ip, port, 'play_pose', data)
+    return pose['Msec']
+
+def reset_pose(ip:str, port:int, speed=1.0) -> int:
+    msec = int(1000 / speed)
+    pose = dict(Msec=msec, ServoMap=HOME_ALL_SERVO_MAP, LedMap=HOME_LED_MAP)
+    data = json.dumps(pose).encode('utf-8')
+    io.send(ip, port, 'play_pose', data)
+    return msec
+
+def stop_pose(ip:str, port:int):
+    io.send(ip, port, 'stop_pose')
+
+def read_axes(ip:str, port:int) -> dict:
+    data = io.recv(ip, port, 'read_axes')
+    axes = json.loads(data)
+    return axes
+
+def play_motion(ip:str, port:int, motion:List[dict]) -> int:
+    data = json.dumps(motion).encode('utf-8')
+    io.send(ip, port, 'play_motion', data)
+    return sum(p['Msec'] for p in motion)
+
+def stop_motion(ip:str, port:int):
+    io.send(ip, port, 'stop_motion')
+
+def play_idle_motion(ip:str, port:int, speed=1.0, pause=1000):
+    data = json.dumps(dict(Speed=speed, Pause=pause)).encode('utf-8')
+    io.send(ip, port, 'play_idle_motion', data)
+    
+def stop_idle_motion(ip:str, port:int):
+    io.send(ip, port, 'stop_idle_motion')
+
+def make_speech_motion(duration:int, speed=1.0):
     """
-    RobotControllerを操作するためのクラス
+    posedefに定義されているSPEECH_MAPSからランダムに一つ選択し、poseを作る。
+    speedはポーズの早さ。msec = 1000/speed
+    speedが1.0なら1000msecで動作する。
     """
-    def __init__(self, ip, speech_port=22222, pose_port=22223, read_port=22224):
-        self.ip = ip
-        self.speech_port = speech_port
-        self.pose_port   = pose_port
-        self.read_port   = read_port
-        self.stop_motion_events = []
+    def __choose(prev, maps):
+        while True:
+            map = random.choice(maps)
+            if map != prev:
+                return map
+
+    msec = int(1000 / speed)
+    size = int(duration / msec)
+    motion = []
+    prev = {}
+    for i in range(size):
+        map = __choose(prev, SPEECH_SERVO_MAPS)
+        motion.append(dict(Msec=msec, ServoMap=map))
+        prev = map
+
+    motion.append(dict(Msec=1000, ServoMap=HOME_ARM_SERVO_MAP))
+    return motion
 
 
-    def say(self, text, speed=1.0, emotion='normal'):
-        """
-        発話させる。
-        """
-        output_file = '{}_say.wav'.format(self.ip)
-        jtalk.make_wav(text, speed, emotion, output_file)
-        with open(output_file, 'rb') as f:
-            data = f.read()
-            send(self.ip, self.speech_port, data)
-        sound = AudioSegment.from_file(output_file, 'wav')
-        return sound.duration_seconds
-
-
-    def play_wav(self, wav_file):
-        """
-        音声ファイルを再生する。
-        """
-        with open(wav_file, 'rb') as f:
-            data = f.read()
-            send(self.ip, self.speech_port, data)
-        sound = AudioSegment.from_file(wav_file, 'wav')
-        return sound.duration_seconds
-
-
-    def read_axes(self):
-        """
-        現在の全関節の角度値を読む。
-        """
-        data = recv(self.ip, self.read_port)
-        axes = json.loads(data)
-        return axes
-
-
-    def play_pose(self, pose):
-        data = json.dumps(pose).encode('utf-8')
-        send(self.ip, self.pose_port, data)
-        return pose['Msec']
-
-
-    def play_motion(self, motion):
-        """
-        モーションを実行する。
-        """
-        def play(stop_motion_event):
-            for pose in motion:
-                data = json.dumps(pose).encode('utf-8')
-                send(self.ip, self.pose_port, data)
-                sec = pose['Msec'] / 1000.0
-                stop_motion_event.wait(sec)
-                if stop_motion_event.is_set():
-                    break
-
-        self.stop_all_motions()
-        stop_motion_event = threading.Event()
-        self.stop_motion_events.append(stop_motion_event)
-        thread = threading.Thread(target=play, args=(stop_motion_event,))
-        thread.start()
-        return sum(pose['Msec'] for pose in motion) / 1000
-        
-
-    def play_idle_motion(self, speed=0.5, pause=0.5):
-        """
-        アイドルモーションを実行する関数。
-        stop_motionを実行するまでアイドルモーションを続ける。
-        """
-        def make_pose():
-            """
-            posedefに定義されているIDLE_MAPSから適切なものを一つ選択し、poseを作る。
-            適切なものとは、現在の頭の傾きとは逆方向の頭の傾きのもの、とする。
-            （頭がゆらゆら揺れるように見せたいため）
-            """
-            axes = self.read_axes()
-            msec = int(1000 / speed)
-            maps = [m for m in posedef.IDLE_MAPS if (m['HEAD_R'] >= 0 if axes['HEAD_R'] < 0 else m['HEAD_R'] < 0)]
-            idle_map = random.choice(maps) if maps else posedef.HOME_SERVO_MAP
-            pose = dict(Msec=msec, ServoMap=idle_map)
-            return pose
-
-        def play(stop_motion_event):
-            while not stop_motion_event.is_set():
-                pose = make_pose()
-                data = json.dumps(pose).encode('utf-8')
-                send(self.ip, self.pose_port, data)
-                stop_motion_event.wait(1.0 / speed)
-                if pause > 0:
-                    stop_motion_event.wait(pause)
-
-        self.stop_all_motions()
-        stop_motion_event = threading.Event()
-        self.stop_motion_events.append(stop_motion_event)
-        thread = threading.Thread(target=play, args=(stop_motion_event,))
-        thread.start()
-        return stop_motion_event
-
-
-    def play_speech_motion(self, duration, speed=1.0):
-        """
-        発話中のモーションを実行する関数。
-        durationで指定した時間だけモーションを続ける。
-        """
-        def make_pose():
-            """
-            posedefに定義されているSPEECH_MAPSからランダムに一つ選択し、poseを作る。
-            speedはポーズの早さ。msec = 1000/speed
-            speedが1.0なら1000msecで動作する。
-            """
-            speech_map = random.choice(posedef.SPEECH_MAPS)
-            msec = int(1000 / speed)
-            pose = dict(Msec=msec, ServoMap=speech_map)
-            return pose
-
-        def play(stop_motion_event):
-            sec = 1.0 / speed
-            remaining_time = duration
-            while remaining_time > sec:
-                pose = make_pose()
-                data = json.dumps(pose).encode('utf-8')
-                send(self.ip, self.pose_port, data)
-                stop_motion_event.wait(sec)
-                if stop_motion_event.is_set():
-                    break
-                remaining_time -= sec
-
-        self.stop_all_motions()
-        stop_motion_event = threading.Event()
-        self.stop_motion_events.append(stop_motion_event)
-        thread = threading.Thread(target=play, args=(stop_motion_event,))
-        thread.start()
-        return stop_motion_event
-
-
-    def stop_all_motions(self):
-        for e in self.stop_motion_events:
-            e.set()
-        self.stop_motion_events.clear()
-
-
-    def reset_pose(self, speed=1.0):
-        """
-        ポーズをホームポジションに戻す関数。
-        """
-        msec = int(1000 / speed)
-        pose = dict(Msec=msec, ServoMap=posedef.HOME_SERVO_MAP, LedMap=posedef.HOME_LED_MAP)
-        data = json.dumps(pose).encode('utf-8')
-        send(self.ip, self.pose_port, data)
-
-
-
-#---------------------
-# Low level functions
-#---------------------
-
-def recv(ip, port):
-    conn = connect(ip, port)
-    size = read_size(conn)
-    data = read_data(conn, size)
-    close(conn)
-    return data.decode('utf-8')
-
-def send(ip, port, data):
-    conn = connect(ip, port)
-    size = len(data)
-    conn.send(size.to_bytes(4, byteorder='big'))
-    conn.send(data)
-    close(conn)
-
-def connect(ip, port):
-    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn.connect((ip, port))
-    return conn
-
-def close(conn):
-    conn.shutdown(1)
-    conn.close()
-
-def read_size(conn):
-    b_size = conn.recv(4)
-    return int.from_bytes(b_size, byteorder='big')
-
-def read_data(conn, size):
-    chunks = []
-    bytes_recved = 0
-    while bytes_recved < size:
-        chunk = conn.recv(size - bytes_recved)
-        if chunk == b'':
-            raise RuntimeError("socket connection broken")
-        chunks.append(chunk)
-        bytes_recved += len(chunk)
-    return b''.join(chunks)
