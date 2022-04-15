@@ -6,6 +6,7 @@ Sample programs for communicating with Sota (CommU).
 ```
 git clone https://github.com/social-robotics-lab/robotcontroller_client.git
 cd robotcontroller_client
+mkdir src/wav
 docker build -t robotcontroller_client .
 ```
 
