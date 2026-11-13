@@ -22,6 +22,7 @@ class ServerError(RobotControllerError):
 
     def __init__(self, code):
         self.code = code
-        self.name = {1: "BUSY", 2: "PROTOCOL_ERROR", 3: "AUDIO_ERROR",
-                     4: "QUEUE_OVERFLOW"}.get(code, "UNKNOWN_ERROR")
+        self.name = {1: "BUSY", 2: "PROTOCOL_ERROR", 3: "AUDIO_ERROR", 4: "QUEUE_OVERFLOW"}.get(
+            code, "UNKNOWN_ERROR"
+        )
         super().__init__(f"サーバーエラー: {self.name} (0x{code:02X})。再生完了は未確認です。")

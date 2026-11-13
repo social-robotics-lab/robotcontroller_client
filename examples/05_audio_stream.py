@@ -1,4 +1,5 @@
 """新型方式: ENDEDを確認するまで待つ。"""
+
 from _common import confirm, parser, robot, run
 
 

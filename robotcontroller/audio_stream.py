@@ -83,7 +83,7 @@ class AudioStream:
             for offset in range(0, len(pcm), MAX_PCM_BYTES):
                 if _cancel is not None and _cancel.is_set():
                     return False
-                chunk = pcm[offset:offset + MAX_PCM_BYTES]
+                chunk = pcm[offset : offset + MAX_PCM_BYTES]
                 schedule_offset = offset / BYTES_PER_SECOND
                 target = schedule_start + schedule_offset
                 delay = target - clock()
@@ -142,8 +142,9 @@ class Playback:
         self._done = threading.Event()
         self._error = None
         self._result = None
-        self._thread = threading.Thread(target=self._run, args=(robot, pcm),
-                                        name="robotcontroller-playback", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run, args=(robot, pcm), name="robotcontroller-playback", daemon=True
+        )
         self._thread.start()
 
     def _run(self, robot, pcm):
@@ -177,6 +178,7 @@ class Playback:
 
     def wait(self):
         """サーバーのENDED/CANCELLEDまたは通信エラーまで待つ。"""
+        self._done.wait()
         self._thread.join()
         return self.result
 

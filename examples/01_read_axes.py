@@ -1,4 +1,5 @@
 """最初に試す読み取り専用サンプル。"""
+
 from _common import parser, robot, run
 
 

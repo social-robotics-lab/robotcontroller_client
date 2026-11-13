@@ -1,4 +1,5 @@
 """腕を動かさない短いSotaモーション。"""
+
 from _common import confirm, parser, robot, run
 
 

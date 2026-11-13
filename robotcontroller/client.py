@@ -1,16 +1,38 @@
 """RobotControllerの公開操作API。生成時には接続しない。"""
 
 from .errors import ProtocolError
-from .protocol import Connection, decode_json, encode_json, positive_number, validate_endpoint
+from .protocol import (
+    Connection,
+    decode_json,
+    encode_json,
+    positive_number,
+    validate_endpoint,
+    validate_payload,
+)
 from .wav import read_wav
 
 SOTA_RANGES = {
-    "BODY_Y": (-61, 61), "L_SHOU": (-180, 60), "L_ELBO": (-90, 65),
-    "R_SHOU": (-60, 180), "R_ELBO": (-65, 90), "HEAD_Y": (-85, 85),
-    "HEAD_P": (-27, 5), "HEAD_R": (-30, 30),
+    "BODY_Y": (-61, 61),
+    "L_SHOU": (-180, 60),
+    "L_ELBO": (-90, 65),
+    "R_SHOU": (-60, 180),
+    "R_ELBO": (-65, 90),
+    "HEAD_Y": (-85, 85),
+    "HEAD_P": (-27, 5),
+    "HEAD_R": (-30, 30),
 }
-SOTA_LEDS = {"PWR_BTN_R", "PWR_BTN_G", "PWR_BTN_B", "R_EYE_R", "R_EYE_G",
-             "R_EYE_B", "L_EYE_R", "L_EYE_G", "L_EYE_B", "MOUTH"}
+SOTA_LEDS = {
+    "PWR_BTN_R",
+    "PWR_BTN_G",
+    "PWR_BTN_B",
+    "R_EYE_R",
+    "R_EYE_G",
+    "R_EYE_B",
+    "L_EYE_R",
+    "L_EYE_G",
+    "L_EYE_B",
+    "MOUTH",
+}
 
 
 def nonnegative_int(value, name):
@@ -26,6 +48,8 @@ class RobotController:
         self.host, self.port, self.timeout, self.model = host, port, timeout, model
 
     def _command(self, name, payload=None, *, reply=False):
+        if payload is not None:
+            validate_payload(payload)  # サイズ不正の場合はコマンド名も送らない
         with Connection(self.host, self.port, self.timeout) as connection:
             connection.send(name.encode("ascii"))
             if payload is not None:
@@ -37,7 +61,9 @@ class RobotController:
         if not isinstance(pose, dict) or "Msec" not in pose:
             raise ValueError("pose はMsecとServoMapまたはLedMapを持つ辞書にしてください。")
         if set(pose) - {"Msec", "ServoMap", "LedMap"}:
-            raise ValueError("pose に未知のキーがあります。Msec/ServoMap/LedMapを確認してください。")
+            raise ValueError(
+                "pose に未知のキーがあります。Msec/ServoMap/LedMapを確認してください。"
+            )
         nonnegative_int(pose["Msec"], "Msec（ミリ秒）")
         if not any(pose.get(key) for key in ("ServoMap", "LedMap")):
             raise ValueError("ServoMapまたはLedMapに少なくとも1つの値が必要です。")
@@ -54,7 +80,10 @@ class RobotController:
                     raise ValueError(f"{name} のLED値は0〜255です。")
                 if self.model == "Sota":
                     if key == "ServoMap":
-                        if name not in SOTA_RANGES or not SOTA_RANGES[name][0] <= value <= SOTA_RANGES[name][1]:
+                        if (
+                            name not in SOTA_RANGES
+                            or not SOTA_RANGES[name][0] <= value <= SOTA_RANGES[name][1]
+                        ):
                             raise ValueError(f"Sotaの軸名または角度範囲が不正です: {name}={value}")
                     elif name not in SOTA_LEDS:
                         raise ValueError(f"SotaのLED名が不正です: {name}")
@@ -110,23 +139,45 @@ class RobotController:
         positive_number(speed, "speed")
         if not 1 <= 1000 / speed <= 2147483647:
             raise ValueError("reset_poseの動作時間が許容範囲外です。")
-        return self.play_pose({"Msec": int(1000 / speed), "ServoMap": {
-            "HEAD_R": 0, "HEAD_P": -5, "HEAD_Y": 0, "BODY_Y": 0,
-            "L_SHOU": -90, "L_ELBO": 0, "R_SHOU": 90, "R_ELBO": 0},
-            "LedMap": {key: 255 for key in SOTA_LEDS if "EYE" in key}})
+        return self.play_pose(
+            {
+                "Msec": int(1000 / speed),
+                "ServoMap": {
+                    "HEAD_R": 0,
+                    "HEAD_P": -5,
+                    "HEAD_Y": 0,
+                    "BODY_Y": 0,
+                    "L_SHOU": -90,
+                    "L_ELBO": 0,
+                    "R_SHOU": 90,
+                    "R_ELBO": 0,
+                },
+                "LedMap": {key: 255 for key in SOTA_LEDS if "EYE" in key},
+            }
+        )
 
     def audio_stream(self):
         """永続接続を開く。withで使用し、終了時に必ず閉じる。"""
         from .audio_stream import AudioStream
+
         return AudioStream(self.host, self.port, self.timeout)
 
     def stream_wav(self, path, *, wait=True):
         """WAVを送信。wait=TrueはENDEDまで待機。FalseはPlaybackを返す。"""
         from .audio_stream import Playback
+
         if type(wait) is not bool:
             raise ValueError("wait はTrueまたはFalseで指定してください。")
         pcm, _ = read_wav(path, streaming=True)
         playback = Playback(self, pcm)
         if wait:
-            playback.wait()
+            try:
+                playback.wait()
+            except BaseException:
+                # Ctrl+Cでも送信スレッドを残さず、中止応答または通信期限まで回収する。
+                try:
+                    playback.close()
+                except Exception:
+                    pass  # cleanupの通信失敗より最初の例外を優先する
+                raise
         return playback

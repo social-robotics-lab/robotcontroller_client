@@ -1,4 +1,5 @@
 """Sotaの頭だけをゆっくり少し動かす。"""
+
 from _common import confirm, parser, robot, run
 
 

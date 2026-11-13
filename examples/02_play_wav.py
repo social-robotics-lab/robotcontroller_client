@@ -1,4 +1,5 @@
 """従来方式: ファイル全体の送信後に戻る。"""
+
 from _common import confirm, parser, robot, run
 
 

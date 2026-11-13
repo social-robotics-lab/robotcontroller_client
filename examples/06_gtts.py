@@ -1,8 +1,9 @@
 """gTTSのMP3をffmpegで24kHz/mono/S16_LE WAVへ変換する。"""
-from pathlib import Path
+
 import shutil
 import subprocess
 import tempfile
+from pathlib import Path
 
 from _common import confirm, parser, robot, run
 
@@ -25,9 +26,24 @@ def main():
         gTTS(args.text, lang="ja").save(str(mp3))
         # shellは使用せず、音声形式を明示する。
         try:
-            subprocess.run([ffmpeg, "-nostdin", "-v", "error", "-i", str(mp3),
-                            "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(wav)],
-                           check=True)
+            subprocess.run(
+                [
+                    ffmpeg,
+                    "-nostdin",
+                    "-v",
+                    "error",
+                    "-i",
+                    str(mp3),
+                    "-ar",
+                    "24000",
+                    "-ac",
+                    "1",
+                    "-c:a",
+                    "pcm_s16le",
+                    str(wav),
+                ],
+                check=True,
+            )
         except subprocess.CalledProcessError as exc:
             raise RuntimeError("ffmpegでの音声変換に失敗しました。") from exc
         print("完了通知:", robot(args).stream_wav(wav).result)

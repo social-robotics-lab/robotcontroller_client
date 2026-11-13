@@ -18,5 +18,6 @@ def make_beat_motion(duration_seconds, speed=1.0):
     count = int(duration_seconds * 1000 / step)
     if count > 10000:
         raise ValueError("生成する姿勢は10000ステップ以下にしてください。")
-    return [{"Msec": step, "ServoMap": {"HEAD_Y": 3 if i % 2 == 0 else -3}}
-            for i in range(count)] + [{"Msec": 1000, "ServoMap": {"HEAD_Y": 0}}]
+    return [
+        {"Msec": step, "ServoMap": {"HEAD_Y": 3 if i % 2 == 0 else -3}} for i in range(count)
+    ] + [{"Msec": 1000, "ServoMap": {"HEAD_Y": 0}}]

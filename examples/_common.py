@@ -1,4 +1,5 @@
 """サンプル共通の引数とエラー表示。import時には操作しない。"""
+
 import argparse
 import sys
 
@@ -22,7 +23,7 @@ def run(main):
         main()
     except (RobotControllerError, OSError, ValueError, RuntimeError) as exc:
         print(f"エラー: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 def confirm():

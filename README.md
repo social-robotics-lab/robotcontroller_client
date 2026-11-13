@@ -154,7 +154,7 @@ RobotControllerErrorで通信・プロトコル・サーバーエラーをまと
 - 旧clientのplay_wav/play_pose/play_motionと新APIはミリ秒を返します。RobotTools.play_wav/say_textの**秒**とは異なります。RobotToolsのplay_pose/play_motionはNoneでしたが、新版は予定ミリ秒です。
 - reset_poseはSota専用として維持。say_text/OpenJTalkは廃止し、06/07の独立サンプルへ分離しました。
 - `make_speech_motion(duration_ms)` / `RobotTools.make_beat_motion(duration_seconds)` は`from robotcontroller.helpers import make_beat_motion`へ移行します。引数は**秒**です。旧腕振りをコピーせず控えめなHEAD_Y動作とし、最後に中央へ戻す1000msを追加します。
-- 旧srcとDockerfileを削除しました。旧コードはGit履歴から参照できます。関数形式の自動互換層はありません。範囲外値・未知キーを送信前に拒否するため、以前サーバー側で丸められた値も修正が必要です。
+- 旧srcのPythonコードとDockerfileを削除しました。旧コードはGit履歴から参照できます。既存のsrc/sample.wavは資料として保持しています（新型に適合するかは形式を確認してください）。関数形式の自動互換層はありません。範囲外値・未知キーを送信前に拒否するため、以前サーバー側で丸められた値も修正が必要です。
 
 ## 開発と検証
 

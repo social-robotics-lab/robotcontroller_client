@@ -13,8 +13,12 @@ MAX_FRAME_BYTES = 64 * 1024 * 1024
 
 
 def positive_number(value, name):
-    if (isinstance(value, bool) or not isinstance(value, (int, float))
-            or not math.isfinite(value) or value <= 0):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
         raise ValueError(f"{name} は正の有限数で指定してください。")
     return value
 
@@ -42,11 +46,15 @@ def _invalid_constant(value):
     raise ValueError(f"Invalid JSON constant: {value}")
 
 
-def frame(data):
+def validate_payload(data):
     if not isinstance(data, bytes):
         raise TypeError("フレーム本文はbytesで指定してください。")
     if not 1 <= len(data) <= MAX_FRAME_BYTES:
         raise ValueError(f"フレーム本文は1〜{MAX_FRAME_BYTES}バイトで指定してください。")
+
+
+def frame(data):
+    validate_payload(data)
     return struct.pack(">I", len(data)) + data
 
 
@@ -67,7 +75,9 @@ class Connection:
     @staticmethod
     def _raise_io(exc):
         if isinstance(exc, TimeoutError):
-            raise CommunicationTimeout("通信がタイムアウトしました。接続先とサーバーを確認してください。") from exc
+            raise CommunicationTimeout(
+                "通信がタイムアウトしました。接続先とサーバーを確認してください。"
+            ) from exc
         raise CommunicationError(f"TCP通信に失敗しました: {exc}") from exc
 
     def send(self, data):
