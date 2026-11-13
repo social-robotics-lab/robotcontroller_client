@@ -1,5 +1,7 @@
 # Pythonクライアント再設計 実装報告
 
+これは初回実装時の記録です。追加レビュー後の音声配置・テスト件数・対応環境は[レビュー記録](review-report.md)を参照してください。
+
 実施日: 2026-11-13。作業ブランチ: `feature/python-client-redesign`。
 開始HEAD: `a9914914e725fbb1daadad225e5990a1ef6fc570`。開始時の作業ツリーはclean。
 最終HEADは本報告を含むPhase 5コミット（最終チャットにハッシュを記載）。

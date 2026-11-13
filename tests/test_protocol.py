@@ -123,3 +123,12 @@ def test_send_timeout_closes_context(monkeypatch):
         with Connection("127.0.0.1", 1234, 1) as connection:
             connection.send(b"x")
     sock.close.assert_called_once()
+
+
+def test_setup_interruption_releases_socket(monkeypatch):
+    sock = Mock()
+    sock.settimeout.side_effect = KeyboardInterrupt()
+    monkeypatch.setattr(socket, "create_connection", lambda *args: sock)
+    with pytest.raises(KeyboardInterrupt):
+        Connection("127.0.0.1", 1234, 1)
+    sock.close.assert_called_once()

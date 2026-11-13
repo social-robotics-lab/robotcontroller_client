@@ -68,6 +68,8 @@ class AudioStream:
     def start(self):
         self._require("IDLE")
         self._barrier(b"\x01", 2, "STARTING", "STREAMING")
+        self._pcm_sent = 0
+        self._schedule_start = None
 
     def send_pcm(self, pcm, *, _cancel=None, _clock=None, _sleeper=None):
         """START後のPCMを速度制御して送る。形式メタデータは呼び出し側で保証する。
@@ -78,13 +80,16 @@ class AudioStream:
         self._require("STREAMING")
         validate_pcm(pcm)
         clock = _clock or time.monotonic
-        schedule_start = clock()
+        schedule_start = getattr(self, "_schedule_start", None)
+        if schedule_start is None:
+            schedule_start = clock()
+        total = getattr(self, "_pcm_sent", 0)
         try:
             for offset in range(0, len(pcm), MAX_PCM_BYTES):
                 if _cancel is not None and _cancel.is_set():
                     return False
                 chunk = pcm[offset : offset + MAX_PCM_BYTES]
-                schedule_offset = offset / BYTES_PER_SECOND
+                schedule_offset = total / BYTES_PER_SECOND
                 target = schedule_start + schedule_offset
                 delay = target - clock()
                 if delay > 0:
@@ -100,6 +105,9 @@ class AudioStream:
                 if _cancel is not None and _cancel.is_set():
                     return False
                 self._connection.send(b"\x02" + chunk)
+                total += len(chunk)
+                self._pcm_sent = total
+                self._schedule_start = schedule_start
                 self._check_async()
             return True
         except BaseException:

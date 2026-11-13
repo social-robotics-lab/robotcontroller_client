@@ -71,6 +71,9 @@ class Connection:
         except OSError as exc:
             self.close()
             self._raise_io(exc)
+        except BaseException:
+            self.close()
+            raise
 
     @staticmethod
     def _raise_io(exc):

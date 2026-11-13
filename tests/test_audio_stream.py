@@ -332,3 +332,143 @@ def test_pacing_absolute_schedule_and_rebase(stall):
     assert [len(record) for _, record in sent] == [961, 961, 961, 961, 3]
     expected = [0, 0.02, 0.07, 0.09, 0.11] if stall else [0, 0.02, 0.04, 0.06, 0.08]
     assert [stamp for stamp, _ in sent] == pytest.approx(expected)
+
+
+def test_pacing_continues_across_send_pcm_calls():
+    clock = Clock()
+    sent = []
+    stream = AudioStream.__new__(AudioStream)
+    stream.state = "STREAMING"
+    stream._connection = Mock()
+    stream._connection.readable.return_value = False
+    stream._connection.send.side_effect = lambda record: sent.append(clock.now)
+    for pcm in (b"\0" * 960, b"\0" * 960, b"\0\0"):
+        stream.send_pcm(pcm, _clock=clock.monotonic, _sleeper=clock.sleep)
+    assert sent == pytest.approx([0, 0.02, 0.04])
+
+
+@pytest.mark.parametrize(
+    "outcome", ["cancelled", "audio_error", "timeout", "disconnect", "wrong_status"]
+)
+def test_playback_concurrent_wait_cancel_close(server, wav_file, monkeypatch, outcome):
+    """呼び出し側6本が競合しても、全ソケット操作はワーカー1本に限定する。"""
+    from robotcontroller.protocol import Connection
+
+    received_data = threading.Event()
+    received_cancel = threading.Event()
+    release = threading.Event()
+    io_threads = set()
+    io_lock = threading.Lock()
+    for name in ("send", "receive", "readable", "close"):
+        original = getattr(Connection, name)
+
+        def record(self, *args, _method=original, **kwargs):
+            with io_lock:
+                io_threads.add(threading.get_ident())
+            return _method(self, *args, **kwargs)
+
+        monkeypatch.setattr(Connection, name, record)
+
+    def handler(sock):
+        handshake(sock)
+        start(sock)
+        assert receive(sock)[0] == 2
+        received_data.set()
+        while True:
+            body = receive(sock)
+            if body == b"\x04":
+                break
+            assert body[0] == 2
+        received_cancel.set()
+        assert release.wait(2)
+        if outcome == "disconnect":
+            return
+        if outcome == "cancelled":
+            respond(sock, 4)
+        elif outcome == "audio_error":
+            respond(sock, 3, kind=0x81)
+        elif outcome == "wrong_status":
+            respond(sock, 3)  # ENDEDをCANCELLEDとして扱ってはいけない
+        # timeoutでは応答を返さない。どの結果でもクライアント側が閉じることを確認。
+        assert sock.recv(1) == b""
+
+    with server(handler) as port:
+        playback = RobotController("127.0.0.1", port, timeout=0.5).stream_wav(
+            wav_file(frames=120000), wait=False
+        )
+        assert received_data.wait(2)
+        gate = threading.Barrier(7)
+        results, failures = [], []
+
+        def caller(method):
+            try:
+                gate.wait(2)
+                results.append(method())
+            except BaseException as exc:
+                failures.append(exc)
+
+        threads = [
+            threading.Thread(target=caller, args=(method,))
+            for method in (playback.wait, playback.cancel, playback.close) * 2
+        ]
+        for thread in threads:
+            thread.start()
+        try:
+            gate.wait(2)
+            assert received_cancel.wait(2)
+            assert not playback.done
+        finally:
+            release.set()
+            for thread in threads:
+                thread.join(2)
+        assert all(not thread.is_alive() for thread in threads)
+        assert not playback._thread.is_alive()
+        assert playback.done
+        assert io_threads == {playback._thread.ident}
+        if outcome == "cancelled":
+            assert results == ["CANCELLED"] * 6 and not failures
+            assert playback.result == "CANCELLED"
+        else:
+            error_type = {
+                "audio_error": ServerError,
+                "timeout": CommunicationTimeout,
+                "disconnect": CommunicationError,
+                "wrong_status": ProtocolError,
+            }[outcome]
+            assert not results and len(failures) == 6
+            assert all(isinstance(error, error_type) for error in failures)
+            if outcome == "audio_error":
+                assert all(error.code == 3 for error in failures)
+            with pytest.raises(error_type):
+                _ = playback.result
+
+
+def test_cancel_after_end_waits_for_ended(server, wav_file):
+    """ENDが選択済みならCANCELを重ねず、すべての呼び出し元へENDEDを返す。"""
+    at_end = threading.Event()
+    release = threading.Event()
+
+    def handler(sock):
+        handshake(sock)
+        start(sock)
+        assert receive(sock)[0] == 2
+        assert receive(sock) == b"\x03"
+        at_end.set()
+        no_frame(sock)
+        assert release.wait(2)
+        respond(sock, 3)
+        assert sock.recv(1) == b""
+
+    with server(handler) as port:
+        playback = RobotController("127.0.0.1", port).stream_wav(wav_file(frames=1), wait=False)
+        assert at_end.wait(2)
+        results = []
+        thread = threading.Thread(target=lambda: results.append(playback.cancel()))
+        thread.start()
+        try:
+            assert not playback.done
+        finally:
+            release.set()
+            thread.join(2)
+        assert results == ["ENDED"]
+        assert playback.wait() == "ENDED"
