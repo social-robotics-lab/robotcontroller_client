@@ -3,8 +3,9 @@
 SotaなどをPythonから操作する研究室向けクライアントです。基本機能はPython標準ライブラリだけで動き、Docker・OpenJTalkは不要です。パッケージの対応範囲はPython 3.10以上、対象OSはWindows/macOSです。
 
 - 推奨環境: Python 3.12の仮想環境。
-- 実行確認済み環境: Windows / CPython 3.12.10・3.14.3（各135テスト合格。結果の詳細は[レビュー記録](docs/review-report.md)）。
-- Python 3.10・3.11・3.13はこの作業環境にインストールされておらず、実行未確認です。構文検証は実行確認に含めません。macOSと実機動作も未検証です。
+- オフラインテスト: Windows / CPython 3.12.10・3.14.3で各135件成功（詳細は[レビュー記録](docs/review-report.md)）。
+- 基本機能: 2026年11月13日、操作者の報告によりSota実機で全7サンプルの正常動作を確認済みです（[実機受入記録](docs/acceptance-report-2026-11-13.md)）。Codex自身が実機試験を行ったものではありません。
+- 詳細なストリーミング異常系・長時間再生とmacOSは実機未確認・未検証です。Python 3.10・3.11・3.13も実行未確認で、構文検証は実行確認に含めません。実機試験時のPython・サーバー版などは未記録です。
 
 ロボット側には[RobotController](https://github.com/social-robotics-lab/RobotController)が必要です。サーバーのインストールと起動手順は本体READMEを参照してください。[授業用robo-tutorial](https://github.com/social-robotics-lab/robo-tutorial)は別管理です。
 
@@ -180,4 +181,4 @@ python -m compileall -q robotcontroller examples tests
 python -m pip check
 ```
 
-テストはループバック・モック・仮想時計のみを使います。ロボット・クラウドAPI・実サーバー起動は不要です。[設計記録](docs/design.md)に調査根拠を記載しています。実機受入は未実施で、操作者による後工程です。読み取り、従来9コマンド、新型の完了・中止・連続再生、長時間音声、切断時の枠解放を安全な実機環境で確認してください。
+自動テストはループバック・モック・仮想時計のみを使います。ロボット・クラウドAPI・実サーバー起動は不要です。[設計記録](docs/design.md)に調査根拠を記載しています。操作者によるSota実機の全7サンプルの基本動作確認は完了しました（[実機受入記録](docs/acceptance-report-2026-11-13.md)）。CANCELでの途中中止、CANCELLED後の別音声、同一接続での複数音声、BUSY、切断後の接続枠解放、長時間再生時のALSA XRUN・音切れは個別の実機受入未確認で、今後の追加検証事項です。macOSも未検証です。
