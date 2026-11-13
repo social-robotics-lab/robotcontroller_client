@@ -1,17 +1,28 @@
 # robotcontroller-client
 
-SotaなどをPythonから操作する研究室向けクライアントです。基本機能はPython標準ライブラリだけで動き、Docker・OpenJTalkは不要です。Python 3.10以上、Windows/macOSを対象とします。今回の自動検証はWindowsのローカル環境のみで、実機・macOSでの動作は未検証です。
+SotaなどをPythonから操作する研究室向けクライアントです。基本機能はPython標準ライブラリだけで動き、Docker・OpenJTalkは不要です。パッケージの対応範囲はPython 3.10以上、対象OSはWindows/macOSです。
+
+- 推奨環境: Python 3.12の仮想環境。
+- 実行確認済み環境: Windows / CPython 3.12.10・3.14.3（各135テスト合格。結果の詳細は[レビュー記録](docs/review-report.md)）。
+- Python 3.10・3.11・3.13はこの作業環境にインストールされておらず、実行未確認です。構文検証は実行確認に含めません。macOSと実機動作も未検証です。
 
 ロボット側には[RobotController](https://github.com/social-robotics-lab/RobotController)が必要です。サーバーのインストールと起動手順は本体READMEを参照してください。[授業用robo-tutorial](https://github.com/social-robotics-lab/robo-tutorial)は別管理です。
 
 ## インストールと最初の実行
 
-ソースを取得し、リポジトリのフォルダで実行します。PyPIには公開していません。
+まずソースを取得し、リポジトリのルートへ移動します。PyPIには公開していません。
+
+```sh
+git clone https://github.com/social-robotics-lab/robotcontroller_client.git
+cd robotcontroller_client
+# Draft PRを確認するときは対象ブランチを選ぶ
+git switch feature/python-client-redesign
+```
 
 Windows PowerShell:
 
 ```powershell
-py -3 -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 .\.venv\Scripts\python.exe examples/01_read_axes.py --host 192.168.11.7 --port 22222
 ```
@@ -19,12 +30,12 @@ py -3 -m venv .venv
 macOS:
 
 ```sh
-python3 -m venv .venv
+python3.12 -m venv .venv
 .venv/bin/python -m pip install -e .
 .venv/bin/python examples/01_read_axes.py --host 192.168.11.7 --port 22222
 ```
 
-以下の`python`は仮想環境の実行ファイルに読み替えてください。activateした場合は`python`で実行できます。IPは操作者が確認したロボットのIPに置き換えます。ポート初期値は22222、通信タイムアウトは秒（既定10秒）です。最初の例は角度の読み取りだけです。
+Python 3.12をインストールしてから実行してください。別の対応版を選ぶ場合は、その版のPythonで仮想環境を作成します。以下の`python`はWindowsでは`.\.venv\Scripts\python.exe`、macOSでは`.venv/bin/python`に読み替えてください（activateは不要）。すべてのインストールとサンプル実行で同じ仮想環境を使います。IPは操作者が確認したロボットのIPに置き換えます。ポート初期値は22222、通信タイムアウトは秒（既定10秒）です。最初の例は角度の読み取りだけです。
 
 ```python
 from robotcontroller import RobotController
@@ -66,21 +77,21 @@ importとインスタンス生成だけでは接続しません。既定`model="
 新型audio_stream_v1は24,000Hz・16bit・モノラル・非圧縮PCM WAVのみ受け付けます。WAVヘッダを除いたsigned little-endian PCMを最大960バイトずつ48,000 bytes/sec基準で送ります。自動リサンプリングはしません。CONNECTION_READY→STARTEDを確認してからDATAを送信し、DATA中も応答を監視します。END後のENDEDはサーバーのdrain/close完了であり、マイクによる音響測定ではありません。[現行の通信仕様](https://github.com/social-robotics-lab/RobotController#通信プロトコル)に準拠しています。
 
 ```python
-robot.stream_wav("sample.wav", wait=True)  # ENDEDを確認して戻る
+robot.stream_wav("assets/sample.wav", wait=True)  # ルートで実行。ENDEDを確認して戻る
 
 # 同一接続。各ENDEDを待ってから次のSTARTを送る。
 with robot.audio_stream() as stream:
-    stream.stream_wav("first.wav")
-    stream.stream_wav("second.wav")
+    stream.stream_wav("assets/sample.wav")
+    stream.stream_wav("assets/sample.wav")
 
 # バックグラウンド送信。必ずwait/cancel/closeまたはwithで回収する。
-with robot.stream_wav("sample.wav", wait=False) as playback:
+with robot.stream_wav("assets/sample.wav", wait=False) as playback:
     print(playback.wait())  # "ENDED"、中止完了なら"CANCELLED"
 ```
 
-Playback.cancel()はCANCELを要求しCANCELLEDまで待ちます。END送信後ならENDEDを待つので戻り値を確認してください。cancel/closeは通信タイムアウトまで待つ場合があります。doneとresultで確認でき、未完了resultはNone、失敗なら例外です。Playbackは専用スレッドを持ちます。複数音声は前のwaitを完了してから開始してください。サーバーの音声接続枠は1つで、待機中AudioStreamも枠を保持します。
+Playback.cancel()はCANCELを要求しCANCELLEDまで待ちます。ワーカーがENDによる終了処理を選択済みの場合はENDEDを待つので戻り値を確認してください。cancel/closeは通信タイムアウトまで待つ場合があります。doneとresultで確認でき、未完了resultはNone、失敗なら例外です。Playbackは専用スレッドを持ちます。複数音声は前のwaitを完了してから開始してください。サーバーの音声接続枠は1つで、待機中AudioStreamも枠を保持します。
 
-低水準APIは`AudioStream.start()`→`send_pcm(bytes)`→`end()`または`cancel()`です。raw PCMのメタデータは検出できないので、24kHz/mono/S16_LEは呼び出し側で保証します。AudioStreamはスレッド間で共有しないでください。closeだけでは正常終了・中止完了は未確認です。エラー時は接続を閉じます。QUEUE_OVERFLOWも例外にし、自動再試行しません。
+低水準APIは`AudioStream.start()`→`send_pcm(bytes)`→`end()`または`cancel()`です。同じ音声内でsend_pcmを複数回呼んでも送信済みバイト数によるペーシングを継続します。raw PCMのメタデータは検出できないので、24kHz/mono/S16_LEは呼び出し側で保証します。AudioStreamはスレッド間で共有しないでください。Playbackのwait/cancel/closeは複数の呼び出し元から利用できますが、ソケットの送受信はワーカー1本だけが担当します。AudioStream.close()だけでは正常終了・中止完了は未確認です。エラー時は接続を閉じます。QUEUE_OVERFLOWも例外にし、自動再試行しません。
 
 ## サンプルと実機操作の安全
 
@@ -88,11 +99,13 @@ Playback.cancel()はCANCELを要求しCANCELLEDまで待ちます。END送信後
 
 ```sh
 python examples/01_read_axes.py --host 192.168.11.7
-python examples/02_play_wav.py --host 192.168.11.7 sample.wav
+python examples/02_play_wav.py --host 192.168.11.7 assets/sample.wav
 python examples/03_play_pose.py --host 192.168.11.7
 python examples/04_play_motion.py --host 192.168.11.7
-python examples/05_audio_stream.py --host 192.168.11.7 sample.wav
+python examples/05_audio_stream.py --host 192.168.11.7 assets/sample.wav
 ```
+
+02/05は同梱の`assets/sample.wav`（24kHz・16bit・モノラルPCM、0.25秒のテスト音）を使います。[生成方法とライセンス](assets/README.md)も確認してください。WAV引数を省略した場合はスクリプト位置から同梱ファイルを探すので、別フォルダからスクリプトを絶対パスで呼ぶ場合も利用できます。明示した独自の相対パスは通常どおりカレントディレクトリ基準です。上記の`assets/sample.wav`だけは、カレントディレクトリに存在しなければ同梱ファイルを参照します。ライブラリAPIに渡す相対パスは常にカレントディレクトリ基準です。
 
 03/04はSotaのHEAD_Yを±3度でゆっくり動かします。範囲内でも部位同士が衝突する場合があります。現在の姿勢・周辺空間・配線・転倒防止・停止手順を確認してから操作者が手動実行してください。reset_poseやアイドル動作は腕も動きます。モーターロックは発熱・発煙の原因になります。
 
@@ -154,7 +167,7 @@ RobotControllerErrorで通信・プロトコル・サーバーエラーをまと
 - 旧clientのplay_wav/play_pose/play_motionと新APIはミリ秒を返します。RobotTools.play_wav/say_textの**秒**とは異なります。RobotToolsのplay_pose/play_motionはNoneでしたが、新版は予定ミリ秒です。
 - reset_poseはSota専用として維持。say_text/OpenJTalkは廃止し、06/07の独立サンプルへ分離しました。
 - `make_speech_motion(duration_ms)` / `RobotTools.make_beat_motion(duration_seconds)` は`from robotcontroller.helpers import make_beat_motion`へ移行します。引数は**秒**です。旧腕振りをコピーせず控えめなHEAD_Y動作とし、最後に中央へ戻す1000msを追加します。
-- 旧srcのPythonコードとDockerfileを削除しました。旧コードはGit履歴から参照できます。既存のsrc/sample.wavは資料として保持しています（新型に適合するかは形式を確認してください）。関数形式の自動互換層はありません。範囲外値・未知キーを送信前に拒否するため、以前サーバー側で丸められた値も修正が必要です。
+- 旧srcのPythonコードとDockerfileを削除しました。旧コードはGit履歴から参照できます。旧src/sample.wavは新型の形式に適合せず制作元も確認できなかったため、外部素材を使わないassets/sample.wavへ置き換えました。関数形式の自動互換層はありません。範囲外値・未知キーを送信前に拒否するため、以前サーバー側で丸められた値も修正が必要です。
 
 ## 開発と検証
 
@@ -162,7 +175,9 @@ RobotControllerErrorで通信・プロトコル・サーバーエラーをまと
 python -m pip install -e ".[test]"
 python -m pytest -q
 python -m ruff check .
+python -m ruff format --check .
 python -m compileall -q robotcontroller examples tests
+python -m pip check
 ```
 
 テストはループバック・モック・仮想時計のみを使います。ロボット・クラウドAPI・実サーバー起動は不要です。[設計記録](docs/design.md)に調査根拠を記載しています。実機受入は未実施で、操作者による後工程です。読み取り、従来9コマンド、新型の完了・中止・連続再生、長時間音声、切断時の枠解放を安全な実機環境で確認してください。

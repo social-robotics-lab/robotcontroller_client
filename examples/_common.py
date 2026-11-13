@@ -2,8 +2,19 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from robotcontroller import RobotController, RobotControllerError
+
+SAMPLE_WAV = Path(__file__).resolve().parents[1] / "assets" / "sample.wav"
+
+
+def wav_path(value):
+    """明示パスは通常どおり解決し、同梱assetsパスだけはリポジトリ基準にも対応。"""
+    path = Path(value).expanduser()
+    if not path.is_absolute() and path.as_posix() == "assets/sample.wav" and not path.is_file():
+        return SAMPLE_WAV
+    return path
 
 
 def parser(description):
